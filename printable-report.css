@@ -1,0 +1,87 @@
+@media print {
+  body {
+    background-color: #ffffff !important;
+    font-size: 10pt;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset main layout for printing */
+  #root > div {
+    display: block !important;
+  }
+  main {
+    padding: 1rem !important;
+    margin: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* General element overrides */
+  .bg-white, .bg-slate-50\/50, .bg-slate-100 {
+    background-color: transparent !important;
+  }
+  
+  .shadow-sm, .shadow-md, .shadow-xl, .shadow-2xl {
+    box-shadow: none !important;
+  }
+
+  .rounded-xl, .rounded-lg, .rounded-md, .rounded-full {
+      border-radius: 0 !important;
+  }
+
+  .border, .border-l-4, .border-b, .border-r, .border-2 {
+      border-color: #ddd !important;
+  }
+
+  /* Project Dashboard specific */
+  .timeline-view-container {
+    display: none !important;
+  }
+
+  .task-list-container {
+    padding: 0 !important;
+  }
+
+  /* Task Card specific */
+  .task-card-container {
+    page-break-inside: avoid;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd !important;
+  }
+  
+  .task-card-menu-button {
+      display: none !important;
+  }
+
+  /* Progress Bar */
+  .h-2\.5 {
+      height: 10px;
+  }
+  .h-4 {
+      height: 16px;
+  }
+
+  /* Make sure progress bar and status colors print */
+  .bg-blue-600, .bg-green-500, .bg-yellow-500, .bg-red-500, .bg-blue-500, .bg-slate-400,
+  .bg-green-100, .bg-yellow-100, .bg-red-100, .bg-blue-100, .bg-slate-200 {
+     -webkit-print-color-adjust: exact !important;
+     print-color-adjust: exact !important;
+  }
+
+  /* Add a header to the page */
+  main::before {
+    content: "Project Report";
+    display: block;
+    font-size: 24pt;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #333;
+  }
+}

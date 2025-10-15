@@ -1,0 +1,6 @@
+{
+  "name": "SiteCoord AI",
+  "description": "A construction project management dashboard that uses AI to parse subcontractor updates and automatically update task statuses. It provides a real-time overview of project progress, tasks, and trades.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
