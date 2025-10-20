@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { Unsubscribe, User } from "firebase/auth";
+import { Home, AlertTriangle } from "lucide-react";
+
 import type {
   Project,
   Trade,
@@ -15,9 +18,8 @@ import {
   MOCK_TASKS,
   MOCK_USERS,
 } from "./constants";
-import { db, getAuth } from "./services/firebaseService";
+import { auth, db } from "./services/firebaseService";
 import { logOut, signIn } from "./services/authService";
-import firebase from "firebase/compat/app";
 import Sidebar from "./components/Sidebar";
 import ProjectDashboard from "./components/ProjectDashboard";
 import LoadingScreen from "./components/LoadingScreen";
@@ -26,12 +28,21 @@ import CustomerView from "./components/CustomerView";
 import SubcontractorView from "./components/SubcontractorView";
 import CreateProjectModal from "./components/CreateProjectModal";
 import AddSubcontractorModal from "./components/AddSubcontractorModal";
-import { Home, AlertTriangle } from "lucide-react";
 import { ChatService } from "./services/chatService";
 import ChatWidget from "./components/ChatWidget";
+import {
+  collection,
+  doc,
+  Firestore,
+  getDocs,
+  onSnapshot,
+  QuerySnapshot,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<firebase.User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [appState, setAppState] = useState<AppState>({
     db: null,
@@ -53,13 +64,10 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // This effect should only run once on mount.
-    let unsubscribe: firebase.Unsubscribe = () => {};
+    let unsubscribe: Unsubscribe = () => {};
 
     const initializeAuth = async () => {
       try {
-        // First, get the configured auth instance. This function handles persistence.
-        const auth = await getAuth();
-
         // onAuthStateChanged will handle user state from popups, redirects, or session.
         // It is the central place to manage user authentication state.
         unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
@@ -140,37 +148,35 @@ const App: React.FC = () => {
     }
   }, [isDemo]);
 
-  const seedData = async (
-    dbInstance: firebase.firestore.Firestore,
-    currentUserId: string
-  ) => {
-    const projectsRef = dbInstance.collection("projects");
-    const tradesRef = dbInstance.collection("trades");
-    const usersRef = dbInstance.collection("users");
+  const seedData = async (dbInstance: Firestore, currentUserId: string) => {
+    const projectsRef = collection(dbInstance, "projects");
+    const tradesRef = collection(dbInstance, "trades");
+    const usersRef = collection(dbInstance, "users");
 
-    const projectsSnap = await projectsRef.get();
-    const usersSnap = await usersRef.get();
+    const projectsSnap = await getDocs(projectsRef);
+    const usersSnap = await getDocs(usersRef);
 
     if (projectsSnap.empty || usersSnap.empty) {
       console.log("Seeding initial data...");
-      const batch = dbInstance.batch();
+      const batch = writeBatch(dbInstance);
 
       if (projectsSnap.empty) {
         MOCK_TRADES.forEach((trade) => {
-          const tradeDocRef = tradesRef.doc(trade.id);
+          const tradeDocRef = doc(tradesRef, trade.id);
           batch.set(tradeDocRef, { ...trade, createdBy: currentUserId });
         });
 
         MOCK_PROJECTS.forEach((project) => {
-          const projectDocRef = projectsRef.doc(project.id);
+          const projectDocRef = doc(projectsRef, project.id);
           batch.set(projectDocRef, { ...project });
           const tasksForProject =
             MOCK_TASKS[project.id as keyof typeof MOCK_TASKS] || [];
           tasksForProject.forEach((task) => {
-            const taskColRef = dbInstance.collection(
+            const taskColRef = collection(
+              dbInstance,
               `projects/${project.id}/tasks`
             );
-            const newTaskRef = taskColRef.doc();
+            const newTaskRef = doc(taskColRef);
             batch.set(newTaskRef, { ...task, projectId: project.id });
           });
         });
@@ -178,7 +184,7 @@ const App: React.FC = () => {
 
       if (usersSnap.empty) {
         MOCK_USERS.forEach((user) => {
-          const userDocRef = usersRef.doc(user.id);
+          const userDocRef = doc(usersRef, user.id);
           batch.set(userDocRef, user);
         });
       }
@@ -206,9 +212,11 @@ const App: React.FC = () => {
       seedData(appState.db, user.uid);
     }
 
-    const projectsQuery = appState.db.collection("projects");
-    const unsubscribeProjects = projectsQuery.onSnapshot(
-      (snapshot: firebase.firestore.QuerySnapshot) => {
+    const projectsQuery = collection(appState.db, "projects");
+
+    const unsubscribeProjects = onSnapshot(
+      projectsQuery,
+      (snapshot: QuerySnapshot) => {
         const projectsData = snapshot.docs.map(
           (doc) => ({ id: doc.id, ...doc.data() } as Project)
         );
@@ -230,9 +238,10 @@ const App: React.FC = () => {
       }
     );
 
-    const tradesQuery = appState.db.collection("trades");
-    const unsubscribeTrades = tradesQuery.onSnapshot(
-      (snapshot: firebase.firestore.QuerySnapshot) => {
+    const tradesQuery = collection(appState.db, "trades");
+    const unsubscribeTrades = onSnapshot(
+      tradesQuery,
+      (snapshot: QuerySnapshot) => {
         const tradesData = snapshot.docs.map(
           (doc) => ({ id: doc.id, ...doc.data() } as Trade)
         );
@@ -241,9 +250,10 @@ const App: React.FC = () => {
       (error) => console.error("Error fetching trades:", error)
     );
 
-    const usersQuery = appState.db.collection("users");
-    const unsubscribeUsers = usersQuery.onSnapshot(
-      (snapshot: firebase.firestore.QuerySnapshot) => {
+    const usersQuery = collection(appState.db, "users");
+    const unsubscribeUsers = onSnapshot(
+      usersQuery,
+      (snapshot: QuerySnapshot) => {
         const usersData = snapshot.docs.map(
           (doc) => ({ id: doc.id, ...doc.data() } as AppUser)
         );
@@ -266,11 +276,13 @@ const App: React.FC = () => {
     }
 
     const tasksUnsubscribers = appState.projects.map((project) => {
-      const tasksQuery = appState.db!.collection(
+      const tasksQuery = collection(
+        appState.db!,
         `projects/${project.id}/tasks`
       );
-      return tasksQuery.onSnapshot(
-        (snapshot: firebase.firestore.QuerySnapshot) => {
+      return onSnapshot(
+        tasksQuery,
+        (snapshot: QuerySnapshot) => {
           const tasksData = snapshot.docs.map(
             (doc) => ({ id: doc.id, ...doc.data() } as Task)
           );
@@ -399,12 +411,15 @@ const App: React.FC = () => {
           };
         });
       } else {
-        const taskRef = appState.db
-          .collection("projects")
-          .doc(projectId)
-          .collection("tasks")
-          .doc(taskId);
-        await taskRef.update(taskUpdate as { [x: string]: any });
+        const taskRef = doc(
+          appState.db,
+          "projects",
+          projectId,
+          "taksks",
+          taskId
+        );
+        updateDoc;
+        await updateDoc(taskRef, taskUpdate as { [x: string]: any });
       }
     }
   };
@@ -455,16 +470,17 @@ const App: React.FC = () => {
         selectedProject: newProject,
       }));
     } else {
-      const batch = appState.db.batch();
-      const newProjectRef = appState.db.collection("projects").doc();
+      const batch = writeBatch(appState.db);
+      const newProjectRef = doc(collection(appState.db, "projects"));
       const newProject = { ...fullProjectData, id: newProjectRef.id };
       batch.set(newProjectRef, newProject);
 
       tradeIdsForNewTasks.forEach((tradeId) => {
-        const taskColRef = appState.db!.collection(
+        const taskColRef = collection(
+          appState.db!,
           `projects/${newProjectRef.id}/tasks`
         );
-        const newTaskRef = taskColRef.doc();
+        const newTaskRef = doc(taskColRef);
         batch.set(newTaskRef, {
           projectId: newProjectRef.id,
           tradeId: tradeId,
@@ -512,10 +528,11 @@ const App: React.FC = () => {
         users: [...prev.users, newSub],
       }));
     } else {
-      const batch = appState.db.batch();
+      console.log("Adding subcontractor:", data);
+      const batch = writeBatch(appState.db);
 
       // Create new Trade
-      const newTradeRef = appState.db.collection("trades").doc();
+      const newTradeRef = doc(collection(appState.db, "trades"));
       const newTradeData: Omit<Trade, "id"> = {
         name: data.tradeType,
         contact: data.name,
@@ -525,7 +542,7 @@ const App: React.FC = () => {
       batch.set(newTradeRef, newTradeData);
 
       // Create new User
-      const newUserRef = appState.db.collection("users").doc();
+      const newUserRef = doc(collection(appState.db, "users"));
       const newUserData: Omit<AppUser, "id"> = {
         name: data.name,
         tradeId: newTradeRef.id,
