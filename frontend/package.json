@@ -1,0 +1,26 @@
+{
+  "name": "sitecoord-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "compile": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@google/genai": "^1.25.0",
+    "lucide-react": "^0.546.0",
+    "firebase": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/node": "^24.8.1",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0"
+  }
+}

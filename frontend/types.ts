@@ -1,4 +1,5 @@
 import firebase from "firebase/compat/app";
+import type { ElementType } from "react";
 
 export enum TaskStatus {
   Completed = "Completed",
@@ -79,7 +80,7 @@ export enum MilestoneStatus {
 export interface ProjectMilestone {
   name: string;
   status: MilestoneStatus;
-  icon: React.ElementType;
+  icon: ElementType;
 }
 
 export interface AppState {
