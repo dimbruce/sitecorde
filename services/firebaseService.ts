@@ -1,5 +1,9 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeApp } from "firebase/app";
+import {
+  browserSessionPersistence,
+  getAuth,
+  setPersistence,
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -13,8 +17,10 @@ const firebaseConfig = {
 };
 
 // Initialize once (important in dev with HMR)
-const app = getApps().length ? initializeApp(firebaseConfig) : getApp();
+const app = initializeApp(firebaseConfig);
 
 // Core services
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+setPersistence(auth, browserSessionPersistence);
