@@ -4,6 +4,7 @@
 	"scripts": {},
 	"packageManager": "pnpm@10.18.1",
 	"devDependencies": {
-		"typescript": "~5.9.3"
+		"typescript": "~5.9.3",
+		"turbo": "^2.5.8"
 	}
 }

@@ -1,0 +1,21 @@
+{
+  "name": "sitecoord-backend",
+  "version": "0.0.1",
+  "scripts": {},
+  "engines": {
+    "node": "22"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "files": [
+    "dist",
+    ".env.*",
+    ".env"
+  ],
+  "dependencies": {
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.5.0"
+  },
+  "private": true,
+  "packageManager": "pnpm@10.18.1"
+}

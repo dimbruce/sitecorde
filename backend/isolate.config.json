@@ -1,0 +1,9 @@
+{
+	"includeDevDependencies": false,
+	"includePatchedDependencies": false,
+	"isolateDirName": "isolate",
+	"logLevel": "debug",
+	"tsconfigPath": "./tsconfig.json",
+	"workspaceRoot": "..",
+	"forceNpm": false
+}
