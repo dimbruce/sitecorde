@@ -1,10 +1,6 @@
-import { auth } from "firebase-admin";
-import { beforeUserCreated, HttpsError } from "firebase-functions/identity";
+import { getAuth } from "firebase-admin/auth";
+import { auth } from "firebase-functions/v1";
 
-export const onUserCreated = beforeUserCreated(async (event) => {
-  const user = event.data;
-  if (!user) {
-    throw new HttpsError("invalid-argument", "No user data provided");
-  }
-  await auth().setCustomUserClaims(user.uid, { role: "Project Manager" });
+export const onUserCreated = auth.user().onCreate(async (user) => {
+  await getAuth().setCustomUserClaims(user.uid, { role: "Project Manager" });
 });
