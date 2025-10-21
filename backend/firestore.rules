@@ -37,6 +37,7 @@ service cloud.firestore {
     // Rules for the "trades" collection
     match /trades/{tradeId} {
       allow read: if isAuthenticated();
+      allow write: if isProjectManager();
     }
 
     // Deny all other access by default
