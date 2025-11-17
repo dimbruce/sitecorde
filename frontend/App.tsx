@@ -19,11 +19,14 @@ import {
     MOCK_USERS,
 } from "./constants";
 import {auth, db, functionsClient} from "./services/firebaseService";
-import {logOut, signIn} from "./services/authService";
+import {logOut} from "./services/authService";
 import Sidebar from "./components/Sidebar";
+import AccountInfoModal from "./components/AccountInfoModal";
 import ProjectDashboard from "./components/ProjectDashboard";
 import LoadingScreen from "./components/LoadingScreen";
 import LoginScreen from "./components/LoginScreen";
+import EmailLoginScreen from "./components/EmailLoginScreen";
+import EmailSignUpScreen from "./components/EmailSignUpScreen";
 import CustomerView from "./components/CustomerView";
 import SubcontractorView from "./components/SubcontractorView";
 import CreateProjectModal from "./components/CreateProjectModal";
@@ -39,6 +42,7 @@ import {
     QuerySnapshot,
     updateDoc,
     writeBatch,
+    setDoc,
 } from "firebase/firestore";
 import { httpsCallable, HttpsCallableResult } from "firebase/functions";
 
@@ -62,6 +66,7 @@ const App: React.FC = () => {
     const [isAddingSubcontractor, setIsAddingSubcontractor] = useState(false);
     const [chatService, setChatService] = useState<ChatService | null>(null);
     const [isDemo, setIsDemo] = useState(false);
+    const [authView, setAuthView] = useState<"landing" | "login" | "signup">("landing");
 
     // Phone verification dialog state
     const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
@@ -70,6 +75,14 @@ const App: React.FC = () => {
     const [codeInput, setCodeInput] = useState("");
     const [verifyLoading, setVerifyLoading] = useState(false);
     const [toast, setToast] = useState<null | { type: "success" | "error"; message: string }>(null);
+
+    // Account modal state
+    const [isAccountOpen, setIsAccountOpen] = useState(false);
+    const [accountInfo, setAccountInfo] = useState<{ name: string; email: string; phone: string | null }>({
+        name: "",
+        email: "",
+        phone: null,
+    });
 
     useEffect(() => {
         // This effect should only run once on mount.
@@ -82,6 +95,10 @@ const App: React.FC = () => {
                 // It is the central place to manage user authentication state.
                 unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
                     setUser(firebaseUser);
+                    // If user signed out, return to landing (LoginScreen)
+                    if (!firebaseUser) {
+                        setAuthView("landing");
+                    }
                     setIsAuthLoading(false); // Auth state is now determined, stop loading.
                 });
             } catch (error: any) {
@@ -664,7 +681,24 @@ const App: React.FC = () => {
     }
 
     if (!isAuthenticated && !isDemo) {
-        return <LoginScreen onEnterDemo={() => setIsDemo(true)} onLogin={signIn}/>;
+        if (authView === "login") {
+            return (
+                <EmailLoginScreen
+                    onBack={() => setAuthView("landing")}
+                    onGoToSignup={() => setAuthView("signup")}
+                />
+            );
+        }
+        if (authView === "signup") {
+            return <EmailSignUpScreen onBack={() => setAuthView("login")} />;
+        }
+        // landing view
+        return (
+            <LoginScreen
+                onEnterDemo={() => setIsDemo(true)}
+                onLogin={() => setAuthView("login")}
+            />
+        );
     }
 
     if (appState.error) {
@@ -803,6 +837,16 @@ const App: React.FC = () => {
             const res = (await callable({ phone, code })) as HttpsCallableResult<{ valid: boolean; status: string }>;
             if (res?.data?.valid) {
                 showToast("success", "Phone successfully verified.");
+                // Save verified phone into /users/{uid} (upsert)
+                if (user && db) {
+                    try {
+                        await setDoc(doc(db as Firestore, "users", user.uid), { phone }, { merge: true });
+                        // reflect in local account modal if open
+                        setAccountInfo((prev) => ({ ...prev, phone }));
+                    } catch (e) {
+                        console.warn("Failed to save phone to Firestore", e);
+                    }
+                }
                 closeVerifyDialog();
             } else {
                 const status = res?.data?.status || "unknown";
@@ -814,6 +858,32 @@ const App: React.FC = () => {
         } finally {
             setVerifyLoading(false);
         }
+    };
+
+    const openAccount = async () => {
+        const authUser = user;
+        const base = {
+            name: authUser?.displayName || "",
+            email: authUser?.email || "",
+            phone: null as string | null,
+        };
+        if (!appState.isOffline && authUser) {
+            try {
+                const ref = doc(db as Firestore, "users", authUser.uid);
+                const snap = await (await import("firebase/firestore")).getDoc(ref);
+                const data = snap.exists() ? snap.data() as any : null;
+                setAccountInfo({
+                    name: (data?.fullName as string) || base.name,
+                    email: (data?.email as string) || base.email,
+                    phone: (data?.phone as string | null) ?? base.phone,
+                });
+            } catch (e) {
+                setAccountInfo(base);
+            }
+        } else {
+            setAccountInfo(base);
+        }
+        setIsAccountOpen(true);
     };
 
 
@@ -830,6 +900,7 @@ const App: React.FC = () => {
                 onAddNewSubcontractor={() => setIsAddingSubcontractor(true)}
                 onLogout={handleLogout}
                 onVerifyPhoneNumber={handleVerifyPhoneNumber}
+                onOpenAccount={openAccount}
             />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
                 {/* Toast */}
@@ -845,7 +916,7 @@ const App: React.FC = () => {
 
                 {/* Phone Verification Dialog */}
                 {isVerifyDialogOpen && (
-                    <div className="fixed inset-0 z-40 flex items-center justify-center">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center">
                         <div className="absolute inset-0 bg-black/40" onClick={closeVerifyDialog} />
                         <div className="relative z-50 w-full max-w-md bg-white rounded-lg shadow-xl p-6">
                             <h3 className="text-lg font-semibold mb-4">Verify your phone</h3>
@@ -987,6 +1058,18 @@ const App: React.FC = () => {
                 <AddSubcontractorModal
                     onClose={() => setIsAddingSubcontractor(false)}
                     onCreate={handleAddSubcontractor}
+                />
+            )}
+            {isAccountOpen && (
+                <AccountInfoModal
+                    open={isAccountOpen}
+                    onClose={() => setIsAccountOpen(false)}
+                    name={accountInfo.name}
+                    email={accountInfo.email}
+                    phone={accountInfo.phone}
+                    onVerify={() => {
+                        handleVerifyPhoneNumber();
+                    }}
                 />
             )}
             <ChatWidget chatService={chatService} isOffline={appState.isOffline}/>
