@@ -77,6 +77,39 @@ function parseMessage(body: string): ParsedMessage {
     };
   }
 
+  // Alternate pattern: address-first messages like
+  // "92 turtleback plumbing is 100% done" or "123 Main St electrical completed"
+  // Capture: where (leading address), task (middle), optional "is 100%",
+  // and a terminal status word.
+  const re2 = new RegExp(
+    `^(?<where>\\d+\\s+[^\n]+?)\\s+(?<task>.+?)\\s+(?:is\\s+\\d+%?\\s+)?(?<status>${statusAlt})$`,
+    "i"
+  );
+  const m2 = re2.exec(normalized);
+  if (m2 && m2.groups) {
+    const s2 = m2.groups.status.toLowerCase();
+    const map2: Record<string, ParsedMessage["status"]> = {
+      finished: "Completed",
+      complete: "Completed",
+      completed: "Completed",
+      done: "Completed",
+      started: "InProgress",
+      begin: "InProgress",
+      began: "InProgress",
+      paused: "Delayed",
+      delayed: "Delayed",
+      blocked: "Delayed",
+      resumed: "InProgress",
+      "in-progress": "InProgress",
+    };
+    const status2 = map2[s2] ?? null;
+    return {
+      status: status2,
+      task: m2.groups.task.trim(),
+      where: m2.groups.where.trim(),
+    };
+  }
+
   // Fallback: try to detect just status
   const found = statusWords.find((w) => lowered.includes(w));
   if (found) {
@@ -159,19 +192,40 @@ export const onReceiveMessage = functions.https.onRequest(
 
       const parsed = parseMessage(body);
 
-      // Find project by address
-      const projectId = await findProjectIdByAddress(parsed.where);
+      // Resolve trade by sender phone number early for potential fallback
+      const resolvedTradeId = await findTradeIdByPhone(from);
+
+      // Find project by address first
+      let projectId = await findProjectIdByAddress(parsed.where);
+
+      // Fallback: if no project matched by address, try to infer by trade assignment
+      if (!projectId && resolvedTradeId) {
+        try {
+          const db = getFirestore();
+          const cgSnap = await db
+            .collectionGroup("tasks")
+            .where("tradeId", "==", resolvedTradeId)
+            .limit(1)
+            .get();
+          if (!cgSnap.empty) {
+            const tdoc = cgSnap.docs[0];
+            const projectRef = tdoc.ref.parent.parent; // tasks -> project
+            projectId = projectRef?.id ?? null;
+          }
+        } catch (e) {
+          // If collection group query fails (e.g., missing index), ignore and proceed to inbound logging
+          console.warn("Fallback by tradeId failed", e);
+        }
+      }
 
       const db = getFirestore();
 
-      // If we found a project, add the task into its tasks subcollection so it appears on dashboard
+      // If we found a project (by address or fallback), add the task into its tasks subcollection so it appears on dashboard
       if (projectId) {
         const today = new Date();
         const ymd = today.toISOString().slice(0, 10); // YYYY-MM-DD
 
         const taskCol = db.collection("projects").doc(projectId).collection("tasks");
-        // Attempt to resolve trade by sender phone number
-        const resolvedTradeId = await findTradeIdByPhone(from);
         await taskCol.add({
           projectId,
           tradeId: resolvedTradeId ?? "unassigned",
@@ -193,6 +247,8 @@ export const onReceiveMessage = functions.https.onRequest(
           parsed,
           createdAt: FieldValue.serverTimestamp(),
           reason: "project_not_found",
+          attemptedTradeId: resolvedTradeId ?? null,
+          fallbackTried: "by_trade_tasks",
         });
       }
 
