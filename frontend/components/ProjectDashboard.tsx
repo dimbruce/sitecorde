@@ -14,7 +14,8 @@ import TaskEditModal from "./TaskEditModal";
 import NotificationPanel from "./NotificationPanel";
 import ChangeRequestPanel from "./ChangeRequestPanel";
 import ProjectProgressBar from "./ProjectProgressBar";
-import { User, List, GanttChartSquare, Printer } from "lucide-react";
+import { User, List, GanttChartSquare, Printer, Plus } from "lucide-react";
+import CreateTaskModal from "./CreateTaskModal";
 
 interface ProjectDashboardProps {
   project: Project;
@@ -29,6 +30,7 @@ interface ProjectDashboardProps {
   onApproveRequest: (request: ChangeRequest) => void;
   onDenyRequest: (requestId: string, projectId: string) => void;
   isOffline: boolean;
+  onCreateTask: (projectId: string, data: { tradeId: string; name: string }) => void;
 }
 
 type ViewMode = "list" | "timeline";
@@ -42,11 +44,13 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onApproveRequest,
   onDenyRequest,
   isOffline,
+  onCreateTask,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [rescheduledTaskIds, setRescheduledTaskIds] = useState<string[]>([]);
   const prevTasksRef = useRef<Task[] | undefined>(undefined);
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
 
   useEffect(() => {
     if (
@@ -108,6 +112,14 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           <div className="mt-4 sm:mt-0 flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
             <User className="text-slate-500" size={20} />
             <span className="font-medium text-slate-700">{project.client}</span>
+            <button
+              type="button"
+              onClick={() => setIsCreateTaskOpen(true)}
+              className="ml-3 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+              title="Create new task"
+            >
+              <Plus size={14} /> New Task
+            </button>
           </div>
         </div>
         <ProjectProgressBar tasks={tasks} trades={trades} />
@@ -236,6 +248,17 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           onDelete={() => {
             console.log("Delete not implemented");
             setEditingTask(null);
+          }}
+        />
+      )}
+
+      {isCreateTaskOpen && (
+        <CreateTaskModal
+          trades={trades}
+          onClose={() => setIsCreateTaskOpen(false)}
+          onCreate={(data) => {
+            onCreateTask(project.id, data);
+            setIsCreateTaskOpen(false);
           }}
         />
       )}

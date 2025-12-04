@@ -1,48 +1,28 @@
 import React, { useState } from "react";
-import type { AppUser, Project, Trade } from "../types";
+import type { Project } from "../types";
 import { X } from "lucide-react";
 
 interface CreateProjectModalProps {
   onClose: () => void;
-  onCreate: (
-    projectData: Omit<Project, "id" | "pmId">,
-    selectedSubcontractorIds: string[]
-  ) => void;
-  subcontractors: AppUser[];
-  trades: Trade[];
+  onCreate: (projectData: Omit<Project, "id" | "pmId">) => void;
 }
 
 const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onClose,
   onCreate,
-  subcontractors,
-  trades,
 }) => {
   const [projectData, setProjectData] = useState({
     name: "",
     address: "",
     client: "",
   });
-  const [selectedSubcontractorIds, setSelectedSubcontractorIds] = useState<
-    string[]
-  >([]);
   const [error, setError] = useState("");
-
-  const tradeMap = new Map(trades.map((trade) => [trade.id, trade.name]));
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     setProjectData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubcontractorSelectionChange = (subcontractorId: string) => {
-    setSelectedSubcontractorIds((prev) =>
-      prev.includes(subcontractorId)
-        ? prev.filter((id) => id !== subcontractorId)
-        : [...prev, subcontractorId]
-    );
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -52,7 +32,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       setError("Project name, address, and client are required.");
       return;
     }
-    onCreate(projectData, selectedSubcontractorIds);
+    onCreate(projectData);
   };
 
   return (
@@ -148,39 +128,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </div>
             </fieldset>
 
-            <fieldset>
-              <legend className="text-base font-semibold text-slate-800 mb-2">
-                Select Initial Subcontractors (Optional)
-              </legend>
-              <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-2 bg-slate-50">
-                {subcontractors.map((sub) => {
-                  const tradeName = sub.tradeId
-                    ? tradeMap.get(sub.tradeId)
-                    : undefined;
-                  const displayName = tradeName
-                    ? `${sub.name} (${tradeName})`
-                    : sub.name;
-                  return (
-                    <label
-                      key={sub.id}
-                      className="flex items-center p-2 rounded-md hover:bg-slate-200 cursor-pointer transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedSubcontractorIds.includes(sub.id)}
-                        onChange={() =>
-                          handleSubcontractorSelectionChange(sub.id)
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-3 text-sm font-medium text-slate-700">
-                        {displayName}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
+            {/* Initial subcontractors section removed per requirements */}
           </div>
           <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end gap-3 flex-shrink-0">
             <button

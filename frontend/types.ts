@@ -33,6 +33,7 @@ export interface Task {
   id: string;
   projectId: string;
   tradeId: string;
+  name?: string;
   status: TaskStatus;
   dependency: string | null;
   notes: string;

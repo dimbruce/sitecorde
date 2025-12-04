@@ -473,11 +473,50 @@ const App: React.FC = () => {
         }
     };
 
-    const handleCreateProject = async (
-        projectData: Omit<Project, "id" | "pmId">,
-        selectedSubcontractorIds: string[]
+    // Create a new task for a given project with selected trade (subcontractor)
+    const handleCreateTask = async (
+        projectId: string,
+        data: { tradeId: string; name: string }
     ) => {
         const today = new Date().toISOString().split("T")[0];
+        const baseTask = {
+            projectId,
+            tradeId: data.tradeId,
+            name: data.name,
+            status: TaskStatus.NotStarted as TaskStatus,
+            dependency: null as string | null,
+            notes: "",
+            startDate: today,
+            endDate: today,
+            progress: 0,
+        };
+
+        if (appState.isOffline || !appState.db) {
+            const newId = `offline-task-${Date.now()}`;
+            const newTask: Task = { id: newId, ...baseTask } as Task;
+            setAppState((prev) => {
+                const existing = prev.tasks[projectId] || [];
+                return {
+                    ...prev,
+                    tasks: { ...prev.tasks, [projectId]: [...existing, newTask] },
+                };
+            });
+            return;
+        }
+
+        try {
+            const taskColRef = collection(appState.db!, `projects/${projectId}/tasks`);
+            const newTaskRef = doc(taskColRef);
+            await setDoc(newTaskRef, { ...baseTask, id: newTaskRef.id });
+            // onSnapshot will update UI
+        } catch (e) {
+            console.error("Failed to create task", e);
+        }
+    };
+
+    const handleCreateProject = async (
+        projectData: Omit<Project, "id" | "pmId">
+    ) => {
 
         const pmId =
             (appState.viewingAsUser?.role === "Project Manager"
@@ -490,42 +529,15 @@ const App: React.FC = () => {
 
         const fullProjectData: Omit<Project, "id"> = {...projectData, pmId, createdBy};
 
-        // selectedSubcontractorIds come from the CreateProjectModal. We now
-        // populate the selectable list from trades (ids == trade ids). For
-        // backward compatibility, also support when ids point to users with
-        // a tradeId.
-        const tradeIdsForNewTasks = selectedSubcontractorIds
-            .map((selectedId) => {
-                // If it's a user id, resolve to their tradeId
-                const user = appState.users.find((u) => u.id === selectedId);
-                if (user?.tradeId) return user.tradeId;
-                // Otherwise, if it's already a trade id, pass it through when it exists
-                const trade = appState.trades.find((t) => t.id === selectedId);
-                return trade?.id;
-            })
-            .filter((id): id is string => !!id);
-
         if (appState.isOffline || !appState.db) {
             const newProjectId = `offline-proj-${Date.now()}`;
             const newProject = {...fullProjectData, id: newProjectId};
-            const newTasks = tradeIdsForNewTasks.map((tradeId, index) => ({
-                id: `${newProjectId}-task-${index}`,
-                projectId: newProjectId,
-                tradeId,
-                status: TaskStatus.NotStarted,
-                dependency: null,
-                notes: "Initial task created for this trade.",
-                startDate: today,
-                endDate: today,
-                progress: 0,
-            }));
-
             setAppState((prev) => ({
                 ...prev,
                 projects: [...prev.projects, newProject],
                 tasks: {
                     ...prev.tasks,
-                    [newProjectId]: newTasks,
+                    [newProjectId]: [],
                 },
                 selectedProject: newProject,
             }));
@@ -535,24 +547,6 @@ const App: React.FC = () => {
             const newProjectRef = doc(collection(appState.db, "projects"));
             const newProject = {...fullProjectData, id: newProjectRef.id};
             batch.set(newProjectRef, newProject);
-
-            tradeIdsForNewTasks.forEach((tradeId) => {
-                const taskColRef = collection(
-                    appState.db!,
-                    `projects/${newProjectRef.id}/tasks`
-                );
-                const newTaskRef = doc(taskColRef);
-                batch.set(newTaskRef, {
-                    projectId: newProjectRef.id,
-                    tradeId: tradeId,
-                    status: TaskStatus.NotStarted,
-                    dependency: null,
-                    notes: "Initial task created for this trade.",
-                    startDate: today,
-                    endDate: today,
-                    progress: 0,
-                });
-            });
 
             await batch.commit();
             // The onSnapshot listener handles the UI update for projects and tasks.
@@ -818,16 +812,7 @@ const App: React.FC = () => {
         ? appState.projects.filter((p) => p.pmId === viewingAsUser.id)
         : appState.projects;
 
-    // Build selectable "subcontractors" from trades collection so user can add
-    // initial subcontractors when creating a project. We map each trade to a
-    // pseudo AppUser with role "Subcontractor" for compatibility with
-    // CreateProjectModal props and rendering.
-    const subcontractors = appState.trades.map((t) => ({
-        id: t.id, // use trade id as selectable id
-        name: t.contact || t.name, // show contact if available, otherwise trade name
-        role: "Subcontractor" as const,
-        tradeId: t.id,
-    }));
+    // Initial subcontractors selection removed from CreateProjectModal per requirements
     const handleLogout = () => {
         if (isDemo) {
             window.location.reload();
@@ -1088,6 +1073,7 @@ const App: React.FC = () => {
                         trades={appState.trades}
                         changeRequests={appState.changeRequests[selectedProject.id] || []}
                         onTaskUpdate={handleTaskUpdate}
+                        onCreateTask={handleCreateTask}
                         onApproveRequest={handleApproveChangeRequest}
                         onDenyRequest={handleDenyChangeRequest}
                         isOffline={appState.isOffline}
@@ -1114,8 +1100,6 @@ const App: React.FC = () => {
                 <CreateProjectModal
                     onClose={() => setIsCreatingProject(false)}
                     onCreate={handleCreateProject}
-                    subcontractors={subcontractors}
-                    trades={appState.trades}
                 />
             )}
             {isAddingSubcontractor && (

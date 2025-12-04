@@ -89,6 +89,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
             )}
             <p className="font-bold text-lg text-slate-800">{trade.name}</p>
           </div>
+          {task.name && (
+            <p className="text-xs text-slate-500 mt-0.5">{task.name}</p>
+          )}
           {!hideContactInfo && (
             <div className="text-sm text-slate-500 mt-1 flex items-center flex-wrap gap-x-4 gap-y-1">
               <div className="flex items-center gap-1.5">
