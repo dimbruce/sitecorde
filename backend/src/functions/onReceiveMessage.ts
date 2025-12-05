@@ -82,6 +82,89 @@ function parseMessage(body: string): ParsedMessage {
     };
   }
 
+  // New pattern: "<task> at <address> is <pct>% <status>" or without percentage
+  // Example: "plumbing at 92 turtleback road is 100% done"
+  const re3 = new RegExp(
+    `^(?<task>.+?)\\s+(?:at|@)\\s+(?<where>.+?)(?:\\s+is\\s+(?<pct>\\d{1,3})%?)?\\s+(?<status>${statusAlt})$`,
+    "i"
+  );
+  const m3 = re3.exec(normalized);
+  if (m3 && m3.groups) {
+    const s3 = m3.groups.status.toLowerCase();
+    const map3: Record<string, ParsedMessage["status"]> = {
+      finished: "Completed",
+      complete: "Completed",
+      completed: "Completed",
+      done: "Completed",
+      started: "InProgress",
+      begin: "InProgress",
+      began: "InProgress",
+      paused: "Delayed",
+      delayed: "Delayed",
+      blocked: "Delayed",
+      resumed: "InProgress",
+      "in-progress": "InProgress",
+    };
+    const status3 = map3[s3] ?? null;
+    const pctVal3 = m3.groups.pct ? Math.min(100, Math.max(0, parseInt(m3.groups.pct, 10))) : null;
+    return {
+      status: status3,
+      task: m3.groups.task.trim(),
+      where: m3.groups.where.trim(),
+      progressPct: pctVal3,
+    };
+  }
+
+  // Pattern: "<task> <status> at <address> [is <pct>%]"
+  // Example: "plumbing completed at 92 turtleback road is 80%"
+  const re4 = new RegExp(
+    `^(?<task>.+?)\\s+(?<status>${statusAlt})\\s+(?:at|@)\\s+(?<where>.+?)(?:\\s+is\\s+(?<pct>\\d{1,3})%?)?$`,
+    "i"
+  );
+  const m4 = re4.exec(normalized);
+  if (m4 && m4.groups) {
+    const s4 = m4.groups.status.toLowerCase();
+    const map4: Record<string, ParsedMessage["status"]> = {
+      finished: "Completed",
+      complete: "Completed",
+      completed: "Completed",
+      done: "Completed",
+      started: "InProgress",
+      begin: "InProgress",
+      began: "InProgress",
+      paused: "Delayed",
+      delayed: "Delayed",
+      blocked: "Delayed",
+      resumed: "InProgress",
+      "in-progress": "InProgress",
+    };
+    const status4 = map4[s4] ?? null;
+    const pctVal4 = m4.groups.pct ? Math.min(100, Math.max(0, parseInt(m4.groups.pct, 10))) : null;
+    return {
+      status: status4,
+      task: m4.groups.task.trim(),
+      where: m4.groups.where.trim(),
+      progressPct: pctVal4,
+    };
+  }
+
+  // Pattern: "<task> at <address> <pct>%" (no explicit status)
+  // Example: "plumbing at 92 turtleback road 75%"
+  const re3b = new RegExp(
+    `^(?<task>.+?)\\s+(?:at|@)\\s+(?<where>.+?)\\s+(?<pct>\\d{1,3})%$`,
+    "i"
+  );
+  const m3b = re3b.exec(normalized);
+  if (m3b && m3b.groups) {
+    const pctVal3b = m3b.groups.pct ? Math.min(100, Math.max(0, parseInt(m3b.groups.pct, 10))) : null;
+    return {
+      status: null,
+      task: m3b.groups.task.trim(),
+      where: m3b.groups.where.trim(),
+      progressPct: pctVal3b,
+    };
+  }
+
   // Alternate pattern: address-first messages like
   // "92 turtleback plumbing is 100% done" or "123 Main St electrical completed"
   // Capture: where (leading address), task (middle), optional "is 100%",
@@ -114,6 +197,125 @@ function parseMessage(body: string): ParsedMessage {
       task: m2.groups.task.trim(),
       where: m2.groups.where.trim(),
       progressPct: pctVal2,
+    };
+  }
+
+  // at-leading pattern with terminal status: "at <address> <task> [is <pct>%] <status>"
+  // Example: "at 92 turtleback road plumbing is 100% done"
+  const re5 = new RegExp(
+    `^(?:at|@)\\s+(?<where>.+?)\\s+(?<task>.+?)\\s+(?:is\\s+(?<pct>\\d{1,3})%?\\s+)?(?<status>${statusAlt})$`,
+    "i"
+  );
+  const m5 = re5.exec(normalized);
+  if (m5 && m5.groups) {
+    const s5 = m5.groups.status.toLowerCase();
+    const map5: Record<string, ParsedMessage["status"]> = {
+      finished: "Completed",
+      complete: "Completed",
+      completed: "Completed",
+      done: "Completed",
+      started: "InProgress",
+      begin: "InProgress",
+      began: "InProgress",
+      paused: "Delayed",
+      delayed: "Delayed",
+      blocked: "Delayed",
+      resumed: "InProgress",
+      "in-progress": "InProgress",
+    };
+    const status5 = map5[s5] ?? null;
+    const pctVal5 = m5.groups.pct ? Math.min(100, Math.max(0, parseInt(m5.groups.pct, 10))) : null;
+    return {
+      status: status5,
+      task: m5.groups.task.trim(),
+      where: m5.groups.where.trim(),
+      progressPct: pctVal5,
+    };
+  }
+
+  // at-leading with only percentage: "at <address> <task> <pct>%"
+  const re5b = new RegExp(
+    `^(?:at|@)\\s+(?<where>.+?)\\s+(?<task>.+?)\\s+(?:is\\s+)?(?<pct>\\d{1,3})%$`,
+    "i"
+  );
+  const m5b = re5b.exec(normalized);
+  if (m5b && m5b.groups) {
+    const pctVal5b = m5b.groups.pct ? Math.min(100, Math.max(0, parseInt(m5b.groups.pct, 10))) : null;
+    return {
+      status: null,
+      task: m5b.groups.task.trim(),
+      where: m5b.groups.where.trim(),
+      progressPct: pctVal5b,
+    };
+  }
+
+  // task-first with percentage before address: "<task> <pct>% at <address> [status]"
+  const re6 = new RegExp(
+    `^(?<task>.+?)\\s+(?<pct>\\d{1,3})%\\s+(?:at|@)\\s+(?<where>.+?)(?:\\s+(?<status>${statusAlt}))?$`,
+    "i"
+  );
+  const m6 = re6.exec(normalized);
+  if (m6 && m6.groups) {
+    const pctVal6 = m6.groups.pct ? Math.min(100, Math.max(0, parseInt(m6.groups.pct, 10))) : null;
+    let status6: ParsedMessage["status"] = null;
+    if (m6.groups.status) {
+      const s6 = m6.groups.status.toLowerCase();
+      const map6: Record<string, ParsedMessage["status"]> = {
+        finished: "Completed",
+        complete: "Completed",
+        completed: "Completed",
+        done: "Completed",
+        started: "InProgress",
+        begin: "InProgress",
+        began: "InProgress",
+        paused: "Delayed",
+        delayed: "Delayed",
+        blocked: "Delayed",
+        resumed: "InProgress",
+        "in-progress": "InProgress",
+      };
+      status6 = map6[s6] ?? null;
+    }
+    return {
+      status: status6,
+      task: m6.groups.task.trim(),
+      where: m6.groups.where.trim(),
+      progressPct: pctVal6,
+    };
+  }
+
+  // address-first with percentage then task: "<address> <pct>% <task> [status]"
+  const re7 = new RegExp(
+    `^(?<where>\\d+\\s+[^\\n]+?)\\s+(?<pct>\\d{1,3})%\\s+(?<task>.+?)(?:\\s+(?<status>${statusAlt}))?$`,
+    "i"
+  );
+  const m7 = re7.exec(normalized);
+  if (m7 && m7.groups) {
+    const pctVal7 = m7.groups.pct ? Math.min(100, Math.max(0, parseInt(m7.groups.pct, 10))) : null;
+    let status7: ParsedMessage["status"] = null;
+    if (m7.groups.status) {
+      const s7 = m7.groups.status.toLowerCase();
+      const map7: Record<string, ParsedMessage["status"]> = {
+        finished: "Completed",
+        complete: "Completed",
+        completed: "Completed",
+        done: "Completed",
+        started: "InProgress",
+        begin: "InProgress",
+        began: "InProgress",
+        paused: "Delayed",
+        delayed: "Delayed",
+        blocked: "Delayed",
+        resumed: "InProgress",
+        "in-progress": "InProgress",
+      };
+      status7 = map7[s7] ?? null;
+    }
+    return {
+      status: status7,
+      task: m7.groups.task.trim(),
+      where: m7.groups.where.trim(),
+      progressPct: pctVal7,
     };
   }
 
@@ -330,10 +532,10 @@ export const onReceiveMessage = functions.https.onRequest(
 
         // If we couldn't update an existing task, create a new one per requirements
         if (!updated) {
-          await taskCol.add({
+          // Build payload carefully to avoid undefined Firestore values
+          const newTask: Record<string, unknown> = {
             projectId,
             tradeId: resolvedTradeId ?? "unassigned",
-            name: parsed.task || undefined,
             status: effectiveStatus,
             dependency: null,
             notes: parsed.task ? `${parsed.task}${parsed.where ? ` @ ${parsed.where}` : ""}` : body,
@@ -343,7 +545,11 @@ export const onReceiveMessage = functions.https.onRequest(
             _source: "sms", // non-breaking additional metadata
             _from: from,
             _createdAt: FieldValue.serverTimestamp(),
-          });
+          };
+          if (parsed.task) {
+            newTask.name = parsed.task; // only include if defined to avoid Firestore undefined error
+          }
+          await taskCol.add(newTask);
         }
       } else {
         // If no project matched, still record the inbound message for later triage
