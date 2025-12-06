@@ -28,6 +28,7 @@ export async function signIn() {
           fullName: u.displayName || "",
           phone: null,
           email: u.email || "",
+          numberToText: "+18447489277",
           createdAt: serverTimestamp(),
         });
       }
@@ -57,6 +58,7 @@ export async function emailSignIn(email: string, password: string) {
           fullName: u.displayName || "",
           phone: null,
           email: u.email || email,
+          numberToText: "+18447489277",
           createdAt: serverTimestamp(),
         });
       }
@@ -89,6 +91,7 @@ export async function emailSignUp(
     fullName,
     phone: null,
     email,
+    numberToText: "+18447489277",
     createdAt: serverTimestamp(),
   });
 }

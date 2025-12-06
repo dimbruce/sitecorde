@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, UserPlus } from "lucide-react";
+import { auth, db } from "../services/firebaseService";
+import { doc, getDoc } from "firebase/firestore";
 
 interface AddSubcontractorModalProps {
   onClose: () => void;
@@ -20,6 +22,29 @@ const AddSubcontractorModal: React.FC<AddSubcontractorModalProps> = ({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [numberToText, setNumberToText] = useState("+18447489277");
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadNumber() {
+      try {
+        const uid = auth.currentUser?.uid;
+        if (!uid) return; // keep default until user is available
+        const ref = doc(db, "users", uid);
+        const snap = await getDoc(ref);
+        if (!isMounted) return;
+        const data = snap.data();
+        const num = (data && (data as any).numberToText) || "+18447489277";
+        setNumberToText(num);
+      } catch (_) {
+        // Keep default on failure
+      }
+    }
+    loadNumber();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,7 +172,7 @@ const AddSubcontractorModal: React.FC<AddSubcontractorModalProps> = ({
           <div className="px-6 pb-2">
             <p className="text-sm text-slate-700">
               Subcontractors should text to this phone number:
-              <span className="block font-bold text-blue-700 mt-1">+1 844 748 9277</span>
+              <span className="block font-bold text-blue-700 mt-1">{numberToText}</span>
             </p>
           </div>
           <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end gap-3 flex-shrink-0">
